@@ -1,0 +1,5 @@
+{
+  "name": "Alapio",
+  "description": "A WhatsApp-like messaging app with real-time chat, file sharing, and Google authentication using Firebase.",
+  "requestFramePermissions": []
+}
