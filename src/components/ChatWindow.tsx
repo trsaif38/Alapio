@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from './ChatApp';
 import { useAuth } from '../context/AuthContext';
 import { db, storage } from '../lib/firebase';
-import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, where, or, and } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Send, Paperclip, Smile, Mic, MoreVertical, Search, Image as ImageIcon, FileText, Video, Music } from 'lucide-react';
+import { Send, Paperclip, Smile, Mic, MoreVertical, Search, Video, Phone, Plus, ChevronDown } from 'lucide-react';
 import MessageItem from './MessageItem';
 
 interface ChatWindowProps {
@@ -18,6 +18,7 @@ export interface Message {
   text: string;
   timestamp: any;
   type: 'text' | 'image' | 'video' | 'audio' | 'file';
+  status?: 'sending' | 'sent' | 'delivered' | 'read';
   fileUrl?: string;
   fileName?: string;
 }
@@ -35,8 +36,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
 
     const chatId = [user.uid, selectedUser.uid].sort().join('_');
     
-    // In a real app, you'd probably use a 'chats' collection with 'messages' subcollection
-    // For simplicity, we'll use a flat 'messages' collection with a combined chatId or sender/receiver fields
     const q = query(
       collection(db, 'messages'),
       where('chatId', '==', chatId),
@@ -73,6 +72,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
       receiverId: selectedUser.uid,
       text,
       type: 'text',
+      status: 'sent',
       timestamp: serverTimestamp(),
     });
   };
@@ -100,6 +100,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
         receiverId: selectedUser.uid,
         text: '',
         type,
+        status: 'sent',
         fileUrl: url,
         fileName: file.name,
         timestamp: serverTimestamp(),
@@ -114,7 +115,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
   return (
     <div className="flex flex-col w-full h-full bg-[#efeae2] relative">
       {/* Header */}
-      <div className="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-l border-[#d1d7db]">
+      <div className="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-l border-gray-300">
         <div className="flex items-center cursor-pointer">
           <img src={selectedUser.photoURL} alt={selectedUser.displayName} className="w-10 h-10 rounded-full mr-3" />
           <div>
@@ -122,14 +123,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
             <span className="text-xs text-[#667781]">online</span>
           </div>
         </div>
-        <div className="flex items-center gap-6 text-[#54656f]">
-          <Search size={20} className="cursor-pointer" />
-          <MoreVertical size={20} className="cursor-pointer" />
+        <div className="flex items-center gap-4 text-[#54656f]">
+          <div className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer">
+            <Video size={18} className="mr-2" />
+            <span className="text-sm font-medium mr-2">Call</span>
+            <ChevronDown size={14} />
+          </div>
+          <div className="w-[1px] h-6 bg-gray-300 mx-1"></div>
+          <Search size={20} className="cursor-pointer hover:text-black" />
+          <MoreVertical size={20} className="cursor-pointer hover:text-black" />
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-10 space-y-2 custom-scrollbar bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat">
+      <div className="flex-1 overflow-y-auto p-4 md:px-16 md:py-6 space-y-2 custom-scrollbar bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat">
         {messages.map((msg) => (
           <MessageItem key={msg.id} message={msg} isOwn={msg.senderId === user?.uid} />
         ))}
@@ -137,29 +144,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
       </div>
 
       {/* Input */}
-      <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-4">
-        <div className="flex items-center gap-4 text-[#54656f]">
-          <Smile size={26} className="cursor-pointer" />
-          <div className="relative">
-            <Paperclip 
-              size={24} 
-              className="cursor-pointer rotate-45" 
-              onClick={() => fileInputRef.current?.click()}
-            />
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              onChange={handleFileUpload}
-            />
-          </div>
+      <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-3">
+        <div className="flex items-center gap-3 text-[#54656f]">
+          <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <Plus size={24} onClick={() => fileInputRef.current?.click()} />
+          </button>
+          <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <Smile size={24} />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            onChange={handleFileUpload}
+          />
         </div>
         
         <form onSubmit={handleSendMessage} className="flex-1">
           <input 
             type="text" 
             placeholder="Type a message" 
-            className="w-full bg-white rounded-lg px-4 py-2.5 outline-none text-[#3b4a54] text-sm"
+            className="w-full bg-white rounded-lg px-4 py-2 outline-none text-[#3b4a54] text-sm shadow-sm"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
           />
@@ -167,13 +172,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
 
         <div className="text-[#54656f]">
           {inputText.trim() ? (
-            <Send 
-              size={24} 
-              className="cursor-pointer text-[#00a884]" 
-              onClick={() => handleSendMessage()}
-            />
+            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+              <Send 
+                size={24} 
+                className="text-[#00a884]" 
+                onClick={() => handleSendMessage()}
+              />
+            </button>
           ) : (
-            <Mic size={24} className="cursor-pointer" />
+            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+              <Mic size={24} />
+            </button>
           )}
         </div>
       </div>

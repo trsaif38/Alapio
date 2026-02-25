@@ -26,6 +26,15 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #aeb1b3;
   }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 /* WhatsApp bubble tail effect */

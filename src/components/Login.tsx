@@ -14,8 +14,14 @@ const Login: React.FC = () => {
       console.error("Login failed", err);
       if (err.code === 'auth/unauthorized-domain') {
         setError(`This domain (${window.location.origin}) is not authorized in Firebase. Please add it to "Authorized domains" in Firebase Console.`);
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        setError("Login was cancelled. Please try again and keep the popup window open until finished.");
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        setError("Login request was cancelled. Please try again.");
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Network error. Please check your internet connection.");
       } else {
-        setError("Login failed. Please check your configuration.");
+        setError("Login failed. Please check your configuration or try again later.");
       }
     }
   };

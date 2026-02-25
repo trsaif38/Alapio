@@ -1,7 +1,7 @@
 import React from 'react';
 import { Message } from './ChatWindow';
 import { format } from 'date-fns';
-import { FileText, Download, Play, Music } from 'lucide-react';
+import { FileText, Download, Play, Music, Clock, Check, CheckCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface MessageItemProps {
@@ -11,6 +11,28 @@ interface MessageItemProps {
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
   const time = message.timestamp?.toDate ? format(message.timestamp.toDate(), 'h:mm a') : '...';
+
+  const renderStatus = () => {
+    if (!isOwn) return null;
+
+    switch (message.status) {
+      case 'sending':
+        return <Clock size={12} className="text-[#667781]" />;
+      case 'sent':
+        return <Check size={14} className="text-[#667781]" />;
+      case 'delivered':
+        return <CheckCheck size={14} className="text-[#667781]" />;
+      case 'read':
+        return <CheckCheck size={14} className="text-[#53bdeb]" />;
+      default:
+        // Default to sent if no status is provided (for backward compatibility)
+        return (
+          <svg viewBox="0 0 16 11" width="16" height="11" fill="#53bdeb">
+            <path d="M15.01 3.316l-.478-.372a.365.365 0 00-.51.063L8.666 9.88a.32.32 0 01-.484.032l-.358-.325a.32.32 0 00-.484.032l-.378.48a.418.418 0 00.036.54l1.32 1.267a.32.32 0 00.484-.034l6.272-8.048a.366.366 0 00-.064-.512zm-4.1 0l-.478-.372a.365.365 0 00-.51.063L4.566 9.88a.32.32 0 01-.484.032L1.892 7.77a.366.366 0 00-.516.005l-.423.433a.364.364 0 00.006.514l3.255 3.185a.32.32 0 00.484-.033l6.272-8.048a.365.365 0 00-.063-.51z" />
+          </svg>
+        );
+    }
+  };
 
   const renderContent = () => {
     switch (message.type) {
@@ -81,11 +103,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
         </div>
         <div className="absolute bottom-1 right-2 flex items-center gap-1">
           <span className="text-[10px] text-[#667781] uppercase">{time}</span>
-          {isOwn && (
-            <svg viewBox="0 0 16 11" width="16" height="11" fill="#53bdeb">
-              <path d="M15.01 3.316l-.478-.372a.365.365 0 00-.51.063L8.666 9.88a.32.32 0 01-.484.032l-.358-.325a.32.32 0 00-.484.032l-.378.48a.418.418 0 00.036.54l1.32 1.267a.32.32 0 00.484-.034l6.272-8.048a.366.366 0 00-.064-.512zm-4.1 0l-.478-.372a.365.365 0 00-.51.063L4.566 9.88a.32.32 0 01-.484.032L1.892 7.77a.366.366 0 00-.516.005l-.423.433a.364.364 0 00.006.514l3.255 3.185a.32.32 0 00.484-.033l6.272-8.048a.365.365 0 00-.063-.51z" />
-            </svg>
-          )}
+          {renderStatus()}
         </div>
       </div>
     </div>
