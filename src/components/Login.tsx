@@ -21,7 +21,7 @@ const Login: React.FC = () => {
       } else if (err.code === 'auth/network-request-failed') {
         setError("Network error. Please check your internet connection.");
       } else {
-        setError("Login failed. Please check your configuration or try again later.");
+        setError(`Login failed (${err.code || 'unknown'}): ${err.message || 'Please check your configuration or try again later.'}`);
       }
     }
   };

@@ -115,42 +115,57 @@ const ChatApp: React.FC = () => {
   }, [user]);
 
   const handleAddUserByEmail = async (email: string) => {
-    if (!user || !email || !rtdb) return;
+    if (!user || !email) return;
+    if (!rtdb) {
+      alert("ডাটাবেস কানেক্ট করা নেই। দয়া করে VITE_FIREBASE_DATABASE_URL সেট করুন।");
+      return;
+    }
     
     const targetEmail = email.toLowerCase().trim();
-    console.log("Starting search for:", targetEmail);
+    console.log("Searching for:", targetEmail);
+
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Timeout")), 15000)
+    );
 
     try {
-      // 1. Search in RTDB
       const usersRef = ref(rtdb, 'users');
       let targetUser: UserProfile | null = null;
 
-      try {
-        const emailQuery = rtdbQuery(usersRef, orderByChild('email'), equalTo(targetEmail));
-        const querySnapshot = await get(emailQuery);
-        
-        if (querySnapshot.exists()) {
-          const data = querySnapshot.val();
-          const keys = Object.keys(data);
-          targetUser = data[keys[0]] as UserProfile;
-        }
-      } catch (indexError: any) {
-        console.warn("Index not defined, falling back to manual scan:", indexError.message);
-        // Fallback: Manual scan if index is missing
-        const allUsersSnap = await get(usersRef);
-        if (allUsersSnap.exists()) {
-          const allUsers = allUsersSnap.val();
-          for (const key in allUsers) {
-            if (allUsers[key].email?.toLowerCase() === targetEmail) {
-              targetUser = allUsers[key] as UserProfile;
-              break;
+      const searchPromise = (async () => {
+        // Try indexed query first
+        try {
+          const emailQuery = rtdbQuery(usersRef, orderByChild('email'), equalTo(targetEmail));
+          const querySnapshot = await get(emailQuery);
+          
+          if (querySnapshot.exists()) {
+            const data = querySnapshot.val();
+            const keys = Object.keys(data);
+            return data[keys[0]] as UserProfile;
+          }
+        } catch (indexError: any) {
+          console.warn("Index not ready, using fallback scan...");
+          const allUsersSnap = await get(usersRef);
+          if (allUsersSnap.exists()) {
+            const allUsers = allUsersSnap.val();
+            const userCount = Object.keys(allUsers).length;
+            console.log(`Scanning through ${userCount} users manually...`);
+            for (const key in allUsers) {
+              if (allUsers[key].email?.toLowerCase() === targetEmail) {
+                return allUsers[key] as UserProfile;
+              }
             }
           }
         }
-      }
+        return null;
+      })();
+
+      // Race between search and timeout
+      targetUser = await Promise.race([searchPromise, timeoutPromise]) as UserProfile | null;
       
       if (!targetUser) {
-        alert(`ইউজার পাওয়া যায়নি। \n\n"${targetEmail}" এই ইমেইল দিয়ে কেউ এখনো Alapio-তে অ্যাকাউন্ট খোলেনি।`);
+        alert(`"${targetEmail}" ইমেইল দিয়ে কোনো ইউজার পাওয়া যায়নি। \n\nপরামর্শ: \n১. নিশ্চিত হোন ইমেইলটি সঠিক। \n২. যাকে খুঁজছেন তাকে অন্তত একবার Alapio-তে লগইন করতে বলুন।`);
         return;
       }
 

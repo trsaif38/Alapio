@@ -30,6 +30,7 @@ function ConfigWarning() {
             <p>VITE_FIREBASE_STORAGE_BUCKET</p>
             <p>VITE_FIREBASE_MESSAGING_SENDER_ID</p>
             <p>VITE_FIREBASE_APP_ID</p>
+            <p>VITE_FIREBASE_DATABASE_URL</p>
           </div>
         </section>
 

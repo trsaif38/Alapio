@@ -14,6 +14,11 @@ const firebaseConfig = {
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
 };
 
+// Debug config (only logs keys, not values for security)
+if (import.meta.env.DEV) {
+  console.log("Firebase Config Keys present:", Object.keys(firebaseConfig).filter(k => !!(firebaseConfig as any)[k]));
+}
+
 // Check if config is valid
 export const isFirebaseConfigured = !!(
   firebaseConfig.apiKey && 
