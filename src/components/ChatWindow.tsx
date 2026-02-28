@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile } from './ChatApp';
 import { useAuth } from '../context/AuthContext';
-import { db, storage } from '../lib/firebase';
+import { db, storage, rtdb } from '../lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, where } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { Send, Paperclip, Smile, Mic, MoreVertical, Search, Video, Phone, Plus, ChevronDown } from 'lucide-react';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as rtdbRef, push, set, onValue, query as rtdbQuery, orderByChild } from 'firebase/database';
+import { Send, Paperclip, Smile, Mic, MoreVertical, Search, Video, Phone, Plus, ChevronDown, ArrowLeft } from 'lucide-react';
 import MessageItem from './MessageItem';
 
 interface ChatWindowProps {
   selectedUser: UserProfile;
+  onBack?: () => void;
 }
 
 export interface Message {
@@ -23,7 +25,7 @@ export interface Message {
   fileName?: string;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -32,25 +34,20 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!user || !selectedUser) return;
+    if (!user || !selectedUser || !rtdb) return;
 
     const chatId = [user.uid, selectedUser.uid].sort().join('_');
+    const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
     
-    const q = query(
-      collection(db, 'messages'),
-      where('chatId', '==', chatId),
-      orderBy('timestamp', 'asc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onValue(chatRef, (snapshot) => {
       const msgs: Message[] = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() } as Message);
+      snapshot.forEach((childSnapshot) => {
+        msgs.push({ id: childSnapshot.key, ...childSnapshot.val() } as Message);
       });
       setMessages(msgs);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, [user, selectedUser]);
 
   useEffect(() => {
@@ -59,43 +56,45 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!inputText.trim() || !user) return;
+    if (!inputText.trim() || !user || !rtdb) return;
 
     const text = inputText;
     setInputText('');
 
     const chatId = [user.uid, selectedUser.uid].sort().join('_');
+    const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
+    const newMessageRef = push(chatRef);
     
-    await addDoc(collection(db, 'messages'), {
-      chatId,
+    await set(newMessageRef, {
       senderId: user.uid,
       receiverId: selectedUser.uid,
       text,
       type: 'text',
       status: 'sent',
-      timestamp: serverTimestamp(),
+      timestamp: Date.now(),
     });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file || !user || !rtdb) return;
 
     setIsUploading(true);
     try {
-      const storageRef = ref(storage, `chats/${Date.now()}_${file.name}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
+      const sRef = storageRef(storage, `chats/${Date.now()}_${file.name}`);
+      await uploadBytes(sRef, file);
+      const url = await getDownloadURL(sRef);
 
       const chatId = [user.uid, selectedUser.uid].sort().join('_');
+      const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
+      const newMessageRef = push(chatRef);
       
       let type: Message['type'] = 'file';
       if (file.type.startsWith('image/')) type = 'image';
       else if (file.type.startsWith('video/')) type = 'video';
       else if (file.type.startsWith('audio/')) type = 'audio';
 
-      await addDoc(collection(db, 'messages'), {
-        chatId,
+      await set(newMessageRef, {
         senderId: user.uid,
         receiverId: selectedUser.uid,
         text: '',
@@ -103,7 +102,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
         status: 'sent',
         fileUrl: url,
         fileName: file.name,
-        timestamp: serverTimestamp(),
+        timestamp: Date.now(),
       });
     } catch (error) {
       console.error("Upload failed", error);
@@ -117,6 +116,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser }) => {
       {/* Header */}
       <div className="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-l border-gray-300">
         <div className="flex items-center cursor-pointer">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="md:hidden p-2 mr-2 hover:bg-gray-200 rounded-full transition-colors"
+            >
+              <ArrowLeft size={20} className="text-[#54656f]" />
+            </button>
+          )}
           <img src={selectedUser.photoURL} alt={selectedUser.displayName} className="w-10 h-10 rounded-full mr-3" />
           <div>
             <h3 className="text-[#111b21] font-medium leading-tight">{selectedUser.displayName}</h3>
