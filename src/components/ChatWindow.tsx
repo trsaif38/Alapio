@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { db, storage, rtdb } from '../lib/firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, where } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { ref as rtdbRef, push, set, onValue, query as rtdbQuery, orderByChild } from 'firebase/database';
+import { ref as rtdbRef, push, set, onValue, query as rtdbQuery, orderByChild, get } from 'firebase/database';
 import { Send, Paperclip, Smile, Mic, MoreVertical, Search, Video, Phone, Plus, ChevronDown, ArrowLeft } from 'lucide-react';
 import MessageItem from './MessageItem';
 
@@ -65,6 +65,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
     const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
     const newMessageRef = push(chatRef);
     
+    // Ensure mutual contact addition on first message
+    const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
+    const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
+    
+    const [mySnap, theirSnap] = await Promise.all([
+      get(myContactsRef),
+      get(theirContactsRef)
+    ]);
+    
+    const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
+    const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
+    
+    if (!myContacts.includes(selectedUser.uid)) {
+      await set(myContactsRef, [...myContacts, selectedUser.uid]);
+    }
+    if (!theirContacts.includes(user.uid)) {
+      await set(theirContactsRef, [...theirContacts, user.uid]);
+    }
+
     await set(newMessageRef, {
       senderId: user.uid,
       receiverId: selectedUser.uid,
@@ -89,6 +108,25 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
       const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
       const newMessageRef = push(chatRef);
       
+      // Ensure mutual contact addition on first file message
+      const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
+      const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
+      
+      const [mySnap, theirSnap] = await Promise.all([
+        get(myContactsRef),
+        get(theirContactsRef)
+      ]);
+      
+      const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
+      const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
+      
+      if (!myContacts.includes(selectedUser.uid)) {
+        await set(myContactsRef, [...myContacts, selectedUser.uid]);
+      }
+      if (!theirContacts.includes(user.uid)) {
+        await set(theirContactsRef, [...theirContacts, user.uid]);
+      }
+
       let type: Message['type'] = 'file';
       if (file.type.startsWith('image/')) type = 'image';
       else if (file.type.startsWith('video/')) type = 'video';

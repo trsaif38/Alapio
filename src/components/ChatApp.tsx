@@ -174,13 +174,26 @@ const ChatApp: React.FC = () => {
         return;
       }
 
-      // 2. Update RTDB contacts list immediately
+      // 2. Update RTDB contacts list immediately (Mutual addition)
       const userRef = ref(rtdb, `users/${user.uid}`);
-      const userSnap = await get(userRef);
-      const currentContacts = userSnap.exists() ? (userSnap.val().contacts || []) : [];
+      const targetRef = ref(rtdb, `users/${targetUser.uid}`);
       
+      const [userSnap, targetSnap] = await Promise.all([
+        get(userRef),
+        get(targetRef)
+      ]);
+
+      const currentContacts = userSnap.exists() ? (userSnap.val().contacts || []) : [];
+      const targetContacts = targetSnap.exists() ? (targetSnap.val().contacts || []) : [];
+      
+      // Add target to my contacts
       if (!currentContacts.includes(targetUser.uid)) {
         await set(child(userRef, 'contacts'), [...currentContacts, targetUser.uid]);
+      }
+      
+      // Add me to target's contacts
+      if (!targetContacts.includes(user.uid)) {
+        await set(child(targetRef, 'contacts'), [...targetContacts, user.uid]);
       }
 
       // 3. Update local state and select user IMMEDIATELY
@@ -211,11 +224,24 @@ const ChatApp: React.FC = () => {
         const targetUser = targetSnap.val() as UserProfile;
         
         const userRef = ref(rtdb, `users/${user.uid}`);
-        const userSnap = await get(userRef);
-        const currentContacts = userSnap.exists() ? (userSnap.val().contacts || []) : [];
+        const targetRef = ref(rtdb, `users/${targetUid}`);
         
+        const [userSnap, targetUserSnap] = await Promise.all([
+          get(userRef),
+          get(targetRef)
+        ]);
+
+        const currentContacts = userSnap.exists() ? (userSnap.val().contacts || []) : [];
+        const targetContacts = targetUserSnap.exists() ? (targetUserSnap.val().contacts || []) : [];
+        
+        // Add target to my contacts
         if (!currentContacts.includes(targetUid)) {
           await set(child(userRef, 'contacts'), [...currentContacts, targetUid]);
+        }
+        
+        // Add me to target's contacts
+        if (!targetContacts.includes(user.uid)) {
+          await set(child(targetRef, 'contacts'), [...targetContacts, user.uid]);
         }
 
         setUsers(prev => {
