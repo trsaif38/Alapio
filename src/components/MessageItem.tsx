@@ -10,7 +10,19 @@ interface MessageItemProps {
 }
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
-  const time = message.timestamp?.toDate ? format(message.timestamp.toDate(), 'h:mm a') : '...';
+  const getTime = () => {
+    if (!message.timestamp) return '...';
+    try {
+      const date = typeof message.timestamp === 'number' 
+        ? new Date(message.timestamp) 
+        : (message.timestamp.toDate ? message.timestamp.toDate() : new Date(message.timestamp));
+      return format(date, 'h:mm a');
+    } catch (e) {
+      return '...';
+    }
+  };
+
+  const time = getTime();
 
   const renderStatus = () => {
     if (!isOwn) return null;

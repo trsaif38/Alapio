@@ -11,6 +11,7 @@ import MessageItem from './MessageItem';
 interface ChatWindowProps {
   selectedUser: UserProfile;
   onBack?: () => void;
+  onStartCall?: (user: UserProfile, type: 'audio' | 'video') => void;
 }
 
 export interface Message {
@@ -25,13 +26,30 @@ export interface Message {
   fileName?: string;
 }
 
-const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCall }) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    let interval: any;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
 
   useEffect(() => {
     if (!user || !selectedUser || !rtdb) return;
@@ -97,10 +115,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user || !rtdb) return;
+    uploadFile(file);
+  };
 
+  const uploadFile = async (file: File | Blob, customFileName?: string) => {
+    if (!user || !rtdb) return;
     setIsUploading(true);
     try {
-      const sRef = storageRef(storage, `chats/${Date.now()}_${file.name}`);
+      const fileName = customFileName || (file instanceof File ? file.name : `audio_${Date.now()}.webm`);
+      const sRef = storageRef(storage, `chats/${Date.now()}_${fileName}`);
       await uploadBytes(sRef, file);
       const url = await getDownloadURL(sRef);
 
@@ -139,13 +162,46 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
         type,
         status: 'sent',
         fileUrl: url,
-        fileName: file.name,
+        fileName: fileName,
         timestamp: Date.now(),
       });
     } catch (error) {
       console.error("Upload failed", error);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        uploadFile(audioBlob, `voice_message_${Date.now()}.webm`);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error("Microphone access denied", err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
     }
   };
 
@@ -169,10 +225,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
           </div>
         </div>
         <div className="flex items-center gap-4 text-[#54656f]">
-          <div className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer">
+          <div 
+            onClick={() => onStartCall?.(selectedUser, 'video')}
+            className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer"
+          >
             <Video size={18} className="mr-2" />
+            <span className="text-sm font-medium mr-2">Video Call</span>
+          </div>
+          <div 
+            onClick={() => onStartCall?.(selectedUser, 'audio')}
+            className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer"
+          >
+            <Phone size={18} className="mr-2" />
             <span className="text-sm font-medium mr-2">Call</span>
-            <ChevronDown size={14} />
           </div>
           <div className="w-[1px] h-6 bg-gray-300 mx-1"></div>
           <Search size={20} className="cursor-pointer hover:text-black" />
@@ -206,26 +271,47 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack }) => {
         </div>
         
         <form onSubmit={handleSendMessage} className="flex-1">
-          <input 
-            type="text" 
-            placeholder="Type a message" 
-            className="w-full bg-white rounded-lg px-4 py-2 outline-none text-[#3b4a54] text-sm shadow-sm"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-          />
+          {isRecording ? (
+            <div className="flex items-center justify-between bg-white rounded-lg px-4 py-2 text-[#00a884] font-medium animate-pulse">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                <span>Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={stopRecording}
+                className="text-red-500 hover:text-red-600 font-bold"
+              >
+                STOP
+              </button>
+            </div>
+          ) : (
+            <input 
+              type="text" 
+              placeholder="Type a message" 
+              className="w-full bg-white rounded-lg px-4 py-2 outline-none text-[#3b4a54] text-sm shadow-sm"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+            />
+          )}
         </form>
 
         <div className="text-[#54656f]">
           {inputText.trim() ? (
-            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors" onClick={() => handleSendMessage()}>
               <Send 
                 size={24} 
                 className="text-[#00a884]" 
-                onClick={() => handleSendMessage()}
               />
             </button>
           ) : (
-            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button 
+              className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-200'}`}
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              onTouchStart={startRecording}
+              onTouchEnd={stopRecording}
+            >
               <Mic size={24} />
             </button>
           )}

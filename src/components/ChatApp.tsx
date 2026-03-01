@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import ChatWindow from './ChatWindow';
 import ProfileView from './ProfileView';
+import CallModal, { CallInfo } from './CallModal';
 import { useAuth } from '../context/AuthContext';
 import { db, rtdb } from '../lib/firebase';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
-import { ref, set, get, onValue, query as rtdbQuery, orderByChild, equalTo, child } from 'firebase/database';
+import { ref, set, get, onValue, query as rtdbQuery, orderByChild, equalTo, child, remove } from 'firebase/database';
+import { AnimatePresence } from 'motion/react';
 
 export interface UserProfile {
   uid: string;
@@ -26,6 +28,79 @@ const ChatApp: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showProfile, setShowProfile] = useState(false);
+  const [activeCall, setActiveCall] = useState<CallInfo | null>(null);
+
+  // Listen for incoming calls
+  useEffect(() => {
+    if (!user || !rtdb) return;
+
+    const callRef = ref(rtdb, `calls/${user.uid}`);
+    const unsubscribe = onValue(callRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        if (data.status === 'ended' || data.status === 'rejected') {
+          setActiveCall(null);
+          // Auto-remove the call record after a short delay
+          setTimeout(() => remove(callRef), 3000);
+          return;
+        }
+        setActiveCall({ ...data, isIncoming: data.callerId !== user.uid });
+      } else {
+        setActiveCall(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const handleStartCall = async (targetUser: UserProfile, type: 'audio' | 'video') => {
+    if (!user || !rtdb) return;
+
+    const callData: CallInfo = {
+      callerId: user.uid,
+      callerName: user.displayName || 'User',
+      callerPhoto: user.photoURL || '',
+      receiverId: targetUser.uid,
+      receiverName: targetUser.displayName,
+      receiverPhoto: targetUser.photoURL,
+      type,
+      status: 'ringing',
+      isIncoming: false,
+    };
+
+    setActiveCall(callData);
+    // Set for both users to track
+    await set(ref(rtdb, `calls/${targetUser.uid}`), callData);
+    await set(ref(rtdb, `calls/${user.uid}`), callData);
+  };
+
+  const handleAcceptCall = async () => {
+    if (!activeCall || !user || !rtdb) return;
+    
+    const updatedCall = { ...activeCall, status: 'accepted' as const };
+    setActiveCall(updatedCall);
+    
+    await set(ref(rtdb, `calls/${activeCall.callerId}`), updatedCall);
+    await set(ref(rtdb, `calls/${activeCall.receiverId}`), updatedCall);
+  };
+
+  const handleRejectCall = async () => {
+    if (!activeCall || !user || !rtdb) return;
+    
+    const targetId = activeCall.isIncoming ? activeCall.callerId : activeCall.receiverId;
+    await remove(ref(rtdb, `calls/${user.uid}`));
+    await set(ref(rtdb, `calls/${targetId}`), { ...activeCall, status: 'rejected' });
+    setActiveCall(null);
+  };
+
+  const handleEndCall = async () => {
+    if (!activeCall || !user || !rtdb) return;
+    
+    const targetId = activeCall.isIncoming ? activeCall.callerId : activeCall.receiverId;
+    await remove(ref(rtdb, `calls/${user.uid}`));
+    await set(ref(rtdb, `calls/${targetId}`), { ...activeCall, status: 'ended' });
+    setActiveCall(null);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -284,7 +359,11 @@ const ChatApp: React.FC = () => {
         {/* Main Chat Area - Visible on mobile if chat is open */}
         <div className={`${selectedUser ? 'flex' : 'hidden md:flex'} flex-1 bg-[#efeae2]`}>
           {selectedUser ? (
-            <ChatWindow selectedUser={selectedUser} onBack={() => setSelectedUser(null)} />
+            <ChatWindow 
+              selectedUser={selectedUser} 
+              onBack={() => setSelectedUser(null)} 
+              onStartCall={handleStartCall}
+            />
           ) : (
             <div className="flex flex-col items-center justify-center w-full h-full text-center p-10 bg-[#f0f2f5]">
               <div className="w-64 h-64 mb-8 opacity-20">
@@ -307,6 +386,16 @@ const ChatApp: React.FC = () => {
           )}
         </div>
       </div>
+      <AnimatePresence>
+        {activeCall && (
+          <CallModal 
+            call={activeCall}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+            onEnd={handleEndCall}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
