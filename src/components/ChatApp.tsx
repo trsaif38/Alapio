@@ -165,7 +165,7 @@ const ChatApp: React.FC = () => {
       targetUser = await Promise.race([searchPromise, timeoutPromise]) as UserProfile | null;
       
       if (!targetUser) {
-        alert(`"${targetEmail}" ইমেইল দিয়ে কোনো ইউজার পাওয়া যায়নি। \n\nপরামর্শ: \n১. নিশ্চিত হোন ইমেইলটি সঠিক। \n২. যাকে খুঁজছেন তাকে অন্তত একবার Alapio-তে লগইন করতে বলুন।`);
+        alert(`ইউজার পাওয়া যায়নি। \n\n"${targetEmail}" এই জিমেইল অথবা নাম্বার দিয়ে এই অ্যাপে এখনো রেজিস্ট্রেশন করা হয়নি।`);
         return;
       }
 
