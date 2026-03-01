@@ -17,6 +17,7 @@ interface ChatWindowProps {
 export interface Message {
   id: string;
   senderId: string;
+  senderName?: string;
   receiverId: string;
   text: string;
   timestamp: any;
@@ -79,31 +80,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCa
     const text = inputText;
     setInputText('');
 
-    const chatId = [user.uid, selectedUser.uid].sort().join('_');
+    const chatId = selectedUser.isGroup 
+      ? selectedUser.uid 
+      : [user.uid, selectedUser.uid].sort().join('_');
     const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
     const newMessageRef = push(chatRef);
     
     // Ensure mutual contact addition on first message
-    const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
-    const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
-    
-    const [mySnap, theirSnap] = await Promise.all([
-      get(myContactsRef),
-      get(theirContactsRef)
-    ]);
-    
-    const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
-    const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
-    
-    if (!myContacts.includes(selectedUser.uid)) {
-      await set(myContactsRef, [...myContacts, selectedUser.uid]);
-    }
-    if (!theirContacts.includes(user.uid)) {
-      await set(theirContactsRef, [...theirContacts, user.uid]);
+    if (!selectedUser.isGroup) {
+      const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
+      const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
+      
+      const [mySnap, theirSnap] = await Promise.all([
+        get(myContactsRef),
+        get(theirContactsRef)
+      ]);
+      
+      const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
+      const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
+      
+      if (!myContacts.includes(selectedUser.uid)) {
+        await set(myContactsRef, [...myContacts, selectedUser.uid]);
+      }
+      if (!theirContacts.includes(user.uid)) {
+        await set(theirContactsRef, [...theirContacts, user.uid]);
+      }
     }
 
     await set(newMessageRef, {
       senderId: user.uid,
+      senderName: user.displayName || 'Anonymous',
       receiverId: selectedUser.uid,
       text,
       type: 'text',
@@ -127,27 +133,31 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCa
       await uploadBytes(sRef, file);
       const url = await getDownloadURL(sRef);
 
-      const chatId = [user.uid, selectedUser.uid].sort().join('_');
+      const chatId = selectedUser.isGroup 
+        ? selectedUser.uid 
+        : [user.uid, selectedUser.uid].sort().join('_');
       const chatRef = rtdbRef(rtdb, `messages/${chatId}`);
       const newMessageRef = push(chatRef);
       
       // Ensure mutual contact addition on first file message
-      const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
-      const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
-      
-      const [mySnap, theirSnap] = await Promise.all([
-        get(myContactsRef),
-        get(theirContactsRef)
-      ]);
-      
-      const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
-      const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
-      
-      if (!myContacts.includes(selectedUser.uid)) {
-        await set(myContactsRef, [...myContacts, selectedUser.uid]);
-      }
-      if (!theirContacts.includes(user.uid)) {
-        await set(theirContactsRef, [...theirContacts, user.uid]);
+      if (!selectedUser.isGroup) {
+        const myContactsRef = rtdbRef(rtdb, `users/${user.uid}/contacts`);
+        const theirContactsRef = rtdbRef(rtdb, `users/${selectedUser.uid}/contacts`);
+        
+        const [mySnap, theirSnap] = await Promise.all([
+          get(myContactsRef),
+          get(theirContactsRef)
+        ]);
+        
+        const myContacts = mySnap.exists() ? (mySnap.val() as string[]) : [];
+        const theirContacts = theirSnap.exists() ? (theirSnap.val() as string[]) : [];
+        
+        if (!myContacts.includes(selectedUser.uid)) {
+          await set(myContactsRef, [...myContacts, selectedUser.uid]);
+        }
+        if (!theirContacts.includes(user.uid)) {
+          await set(theirContactsRef, [...theirContacts, user.uid]);
+        }
       }
 
       let type: Message['type'] = 'file';
@@ -157,6 +167,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCa
 
       await set(newMessageRef, {
         senderId: user.uid,
+        senderName: user.displayName || 'Anonymous',
         receiverId: selectedUser.uid,
         text: '',
         type,
@@ -206,60 +217,74 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCa
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-[#efeae2] relative">
+    <div className="flex flex-col w-full h-full bg-black relative">
       {/* Header */}
-      <div className="h-[60px] bg-[#f0f2f5] px-4 flex items-center justify-between border-l border-gray-300">
+      <div className="h-[70px] bg-[#111] px-6 flex items-center justify-between border-b border-white/5 shadow-xl z-10">
         <div className="flex items-center cursor-pointer">
           {onBack && (
             <button 
               onClick={onBack}
-              className="md:hidden p-2 mr-2 hover:bg-gray-200 rounded-full transition-colors"
+              className="md:hidden p-2 mr-3 hover:bg-white/5 rounded-xl transition-colors"
             >
-              <ArrowLeft size={20} className="text-[#54656f]" />
+              <ArrowLeft size={20} className="text-white/60" />
             </button>
           )}
-          <img src={selectedUser.photoURL} alt={selectedUser.displayName} className="w-10 h-10 rounded-full mr-3" />
+          <div className="relative">
+            <img src={selectedUser.photoURL} alt={selectedUser.displayName} className="w-11 h-11 rounded-2xl mr-4 object-cover border border-white/10 shadow-lg" />
+            <div className={`absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-[#111] rounded-full ${selectedUser.isGroup ? 'hidden' : ''}`}></div>
+          </div>
           <div>
-            <h3 className="text-[#111b21] font-medium leading-tight">{selectedUser.displayName}</h3>
-            <span className="text-xs text-[#667781]">online</span>
+            <h3 className="text-white font-bold leading-tight tracking-tight">{selectedUser.displayName}</h3>
+            <span className="text-[10px] text-emerald-500 font-black uppercase tracking-widest">
+              {selectedUser.isGroup ? 'Group Chat' : 'Online'}
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-[#54656f]">
-          <div 
-            onClick={() => onStartCall?.(selectedUser, 'video')}
-            className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer"
-          >
-            <Video size={18} className="mr-2" />
-            <span className="text-sm font-medium mr-2">Video Call</span>
-          </div>
-          <div 
-            onClick={() => onStartCall?.(selectedUser, 'audio')}
-            className="flex items-center border border-gray-300 rounded-lg bg-white/50 px-2 py-1 hover:bg-white transition-colors cursor-pointer"
-          >
-            <Phone size={18} className="mr-2" />
-            <span className="text-sm font-medium mr-2">Call</span>
-          </div>
-          <div className="w-[1px] h-6 bg-gray-300 mx-1"></div>
-          <Search size={20} className="cursor-pointer hover:text-black" />
-          <MoreVertical size={20} className="cursor-pointer hover:text-black" />
+        <div className="flex items-center gap-2 text-white/60">
+          {!selectedUser.isGroup && (
+            <>
+              <button 
+                onClick={() => onStartCall?.(selectedUser, 'video')}
+                className="p-2.5 hover:bg-white/5 rounded-xl transition-all hover:text-blue-600"
+                title="Video Call"
+              >
+                <Video size={20} />
+              </button>
+              <button 
+                onClick={() => onStartCall?.(selectedUser, 'audio')}
+                className="p-2.5 hover:bg-white/5 rounded-xl transition-all hover:text-blue-600"
+                title="Voice Call"
+              >
+                <Phone size={20} />
+              </button>
+              <div className="w-[1px] h-6 bg-white/5 mx-2"></div>
+            </>
+          )}
+          <MoreVertical size={20} className="cursor-pointer hover:text-white transition-colors" />
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 md:px-16 md:py-6 space-y-2 custom-scrollbar bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat">
+      <div className="flex-1 overflow-y-auto p-6 md:px-12 md:py-8 space-y-4 custom-scrollbar bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-repeat">
         {messages.map((msg) => (
-          <MessageItem key={msg.id} message={msg} isOwn={msg.senderId === user?.uid} />
+          <MessageItem 
+            key={msg.id} 
+            message={msg} 
+            isOwn={msg.senderId === user?.uid} 
+            senderName={msg.senderName}
+            showSenderName={selectedUser.isGroup}
+          />
         ))}
         <div ref={scrollRef} />
       </div>
 
       {/* Input */}
-      <div className="bg-[#f0f2f5] px-4 py-2 flex items-center gap-3">
-        <div className="flex items-center gap-3 text-[#54656f]">
-          <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+      <div className="bg-[#111] px-6 py-4 flex items-center gap-4 border-t border-white/5 shadow-2xl">
+        <div className="flex items-center gap-2 text-white/40">
+          <button className="p-2 hover:bg-white/5 rounded-xl transition-colors hover:text-blue-600">
             <Plus size={24} onClick={() => fileInputRef.current?.click()} />
           </button>
-          <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+          <button className="p-2 hover:bg-white/5 rounded-xl transition-colors hover:text-blue-600">
             <Smile size={24} />
           </button>
           <input 
@@ -272,47 +297,47 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedUser, onBack, onStartCa
         
         <form onSubmit={handleSendMessage} className="flex-1">
           {isRecording ? (
-            <div className="flex items-center justify-between bg-white rounded-lg px-4 py-2 text-[#00a884] font-medium animate-pulse">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-                <span>Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
+            <div className="flex items-center justify-between bg-black rounded-xl px-4 py-2.5 text-emerald-500 font-bold border border-emerald-500/30">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                <span className="text-xs uppercase tracking-widest">Recording... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</span>
               </div>
               <button 
                 type="button" 
                 onClick={stopRecording}
-                className="text-red-500 hover:text-red-600 font-bold"
+                className="text-emerald-500 hover:text-emerald-400 text-xs font-black uppercase tracking-tighter"
               >
-                STOP
+                Cancel
               </button>
             </div>
           ) : (
             <input 
               type="text" 
-              placeholder="Type a message" 
-              className="w-full bg-white rounded-lg px-4 py-2 outline-none text-[#3b4a54] text-sm shadow-sm"
+              placeholder="Write a message..." 
+              className="w-full bg-black rounded-xl px-4 py-2.5 outline-none text-white text-sm border border-white/5 focus:border-blue-600/50 transition-all placeholder:text-white/20"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
           )}
         </form>
 
-        <div className="text-[#54656f]">
+        <div className="text-white/60">
           {inputText.trim() ? (
-            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors" onClick={() => handleSendMessage()}>
-              <Send 
-                size={24} 
-                className="text-[#00a884]" 
-              />
+            <button 
+              className="w-11 h-11 bg-blue-600 hover:bg-blue-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-600/20 transition-all active:scale-95" 
+              onClick={() => handleSendMessage()}
+            >
+              <Send size={20} />
             </button>
           ) : (
             <button 
-              className={`p-2 rounded-full transition-colors ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'hover:bg-gray-200'}`}
+              className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all active:scale-95 ${isRecording ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-white/5 hover:bg-white/10 text-white/40'}`}
               onMouseDown={startRecording}
               onMouseUp={stopRecording}
               onTouchStart={startRecording}
               onTouchEnd={stopRecording}
             >
-              <Mic size={24} />
+              <Mic size={20} />
             </button>
           )}
         </div>

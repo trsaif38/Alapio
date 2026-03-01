@@ -6,8 +6,9 @@ import CallModal, { CallInfo } from './CallModal';
 import { useAuth } from '../context/AuthContext';
 import { db, rtdb } from '../lib/firebase';
 import { collection, doc, setDoc, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
-import { ref, set, get, onValue, query as rtdbQuery, orderByChild, equalTo, child, remove } from 'firebase/database';
+import { ref, set, get, onValue, query as rtdbQuery, orderByChild, equalTo, child, remove, update } from 'firebase/database';
 import { AnimatePresence } from 'motion/react';
+import { MessageSquare } from 'lucide-react';
 
 export interface UserProfile {
   uid: string;
@@ -19,6 +20,9 @@ export interface UserProfile {
   status?: string;
   bio?: string;
   isPremium?: boolean;
+  isGroup?: boolean;
+  members?: string[];
+  id?: string;
 }
 
 const ChatApp: React.FC = () => {
@@ -121,10 +125,21 @@ const ChatApp: React.FC = () => {
 
     const userRef = ref(rtdb, `users/${user.uid}`);
     
+    // Load cached contacts from localStorage for instant UI
+    const cachedContacts = localStorage.getItem(`contacts_${user.uid}`);
+    if (cachedContacts) {
+      try {
+        setUsers(JSON.parse(cachedContacts));
+        setLoadingUsers(false);
+      } catch (e) {
+        console.error("Error parsing cached contacts", e);
+      }
+    }
+    
     const initializeUser = async () => {
       try {
-        // Update RTDB
-        await set(userRef, {
+        // Use update instead of set to preserve contacts and other existing fields
+        await update(userRef, {
           uid: user.uid,
           displayName: user.displayName,
           photoURL: user.photoURL,
@@ -135,7 +150,7 @@ const ChatApp: React.FC = () => {
           isPremium: true 
         });
 
-        // Keep Firestore in sync for now if needed, but primary is RTDB
+        // Keep Firestore in sync
         const firestoreRef = doc(db, 'users', user.uid);
         await setDoc(firestoreRef, {
           uid: user.uid,
@@ -154,18 +169,12 @@ const ChatApp: React.FC = () => {
 
     initializeUser();
 
-    // Listen to current user's document for contacts in RTDB
+    // Listen to current user's document for contacts and groups in RTDB
     const unsubscribe = onValue(userRef, async (snapshot) => {
       if (snapshot.exists()) {
         const userData = snapshot.val();
         const contactUids = userData.contacts || [];
         
-        if (contactUids.length === 0) {
-          setUsers([]);
-          setLoadingUsers(false);
-          return;
-        }
-
         try {
           // Fetch all contacts details from RTDB
           const contactsData: UserProfile[] = [];
@@ -175,9 +184,26 @@ const ChatApp: React.FC = () => {
               contactsData.push(contactSnap.val() as UserProfile);
             }
           }
+
+          // Fetch groups where user is a member
+          const groupsRef = ref(rtdb, 'groups');
+          const groupsSnap = await get(groupsRef);
+          if (groupsSnap.exists()) {
+            const allGroups = groupsSnap.val();
+            for (const key in allGroups) {
+              const group = allGroups[key] as UserProfile;
+              if (group.members?.includes(user.uid)) {
+                // Use group ID as UID for consistency in selection
+                contactsData.push({ ...group, uid: group.id as string });
+              }
+            }
+          }
+
           setUsers(contactsData);
+          // Cache to localStorage
+          localStorage.setItem(`contacts_${user.uid}`, JSON.stringify(contactsData));
         } catch (error) {
-          console.error("Error fetching contacts:", error);
+          console.error("Error fetching contacts/groups:", error);
         } finally {
           setLoadingUsers(false);
         }
@@ -333,58 +359,42 @@ const ChatApp: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col w-full h-full max-w-[1600px] shadow-2xl bg-[#f0f2f5] overflow-hidden md:h-[95vh] md:rounded-lg border border-gray-300 relative">
-      {!isOnline && (
-        <div className="absolute top-0 left-0 right-0 bg-yellow-100 text-yellow-800 text-[10px] py-1 px-4 text-center z-[110] flex items-center justify-center gap-2 border-b border-yellow-200">
-          <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse"></div>
-          Computer not connected. Make sure you have an active internet connection.
-        </div>
-      )}
-      
-      <div className="flex flex-1 overflow-hidden">
-        {/* Middle Sidebar (Chat List) - Hidden on mobile if chat is open */}
-        <div className={`${selectedUser ? 'hidden md:flex' : 'flex'} w-full md:w-[400px] border-r border-gray-300 flex-shrink-0 bg-white relative`}>
-          {showProfile && <ProfileView onClose={() => setShowProfile(false)} />}
-          <Sidebar 
-            users={users} 
-            selectedUser={selectedUser} 
-            onSelectUser={setSelectedUser} 
-            loading={loadingUsers}
-            onAddUserByEmail={handleAddUserByEmail}
-            onAddUserByUid={handleAddUserByUid}
-            onProfileClick={() => setShowProfile(true)}
-          />
-        </div>
+    <div className="flex h-screen bg-black overflow-hidden font-sans selection:bg-blue-600/30">
+      <div className={`${selectedUser ? 'hidden md:block' : 'block'} w-full md:w-[400px] border-r border-white/5 shadow-2xl z-20`}>
+        {showProfile && <ProfileView onClose={() => setShowProfile(false)} />}
+        <Sidebar 
+          users={users} 
+          selectedUser={selectedUser} 
+          onSelectUser={setSelectedUser} 
+          loading={loadingUsers}
+          onAddUserByEmail={handleAddUserByEmail}
+          onAddUserByUid={handleAddUserByUid}
+          onProfileClick={() => setShowProfile(true)}
+        />
+      </div>
 
-        {/* Main Chat Area - Visible on mobile if chat is open */}
-        <div className={`${selectedUser ? 'flex' : 'hidden md:flex'} flex-1 bg-[#efeae2]`}>
-          {selectedUser ? (
-            <ChatWindow 
-              selectedUser={selectedUser} 
-              onBack={() => setSelectedUser(null)} 
-              onStartCall={handleStartCall}
-            />
-          ) : (
-            <div className="flex flex-col items-center justify-center w-full h-full text-center p-10 bg-[#f0f2f5]">
-              <div className="w-64 h-64 mb-8 opacity-20">
-                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-                </svg>
-              </div>
-              <h2 className="text-3xl font-light text-[#41525d] mb-4">Alapio for Web</h2>
-              <p className="text-[#667781] text-sm max-w-md">
-                Send and receive messages without keeping your phone online.<br/>
-                Use Alapio on up to 4 linked devices and 1 phone at the same time.
-              </p>
-              <div className="mt-auto flex items-center gap-2 text-[#8696a0] text-xs">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-                </svg>
-                End-to-end encrypted
-              </div>
+      <div className={`${!selectedUser ? 'hidden md:flex' : 'flex'} flex-1 flex-col relative bg-black`}>
+        {selectedUser ? (
+          <ChatWindow 
+            selectedUser={selectedUser} 
+            onBack={() => setSelectedUser(null)} 
+            onStartCall={handleStartCall}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] bg-repeat">
+            <div className="w-24 h-24 bg-blue-600/10 rounded-[2.5rem] flex items-center justify-center mb-8 border-2 border-dashed border-blue-600/20 animate-pulse">
+              <MessageSquare size={40} className="text-blue-600" />
             </div>
-          )}
-        </div>
+            <h2 className="text-3xl font-black text-white mb-3 tracking-tight uppercase italic">Select a conversation</h2>
+            <p className="text-white/40 max-w-sm text-sm font-medium leading-relaxed">
+              Choose a contact or group from the sidebar to start a secure, encrypted conversation.
+            </p>
+            <div className="mt-12 flex items-center gap-2 px-4 py-2 bg-white/5 rounded-full border border-white/10 backdrop-blur-md">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+              <span className="text-[10px] text-white/60 font-black uppercase tracking-[0.2em]">System Online & Secure</span>
+            </div>
+          </div>
+        )}
       </div>
       <AnimatePresence>
         {activeCall && (

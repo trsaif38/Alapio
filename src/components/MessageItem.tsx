@@ -7,9 +7,11 @@ import { cn } from '../lib/utils';
 interface MessageItemProps {
   message: Message;
   isOwn: boolean;
+  senderName?: string;
+  showSenderName?: boolean;
 }
 
-const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
+const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn, senderName, showSenderName }) => {
   const getTime = () => {
     if (!message.timestamp) return '...';
     try {
@@ -71,7 +73,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
       case 'audio':
         return (
           <div className="flex items-center gap-3 min-w-[200px] py-1">
-            <div className="w-10 h-10 bg-[#00a884] rounded-full flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
               <Music size={20} />
             </div>
             <audio src={message.fileUrl} controls className="h-8 flex-1" />
@@ -85,14 +87,14 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
             rel="noopener noreferrer"
             className="flex items-center gap-3 p-2 bg-black/5 rounded-lg hover:bg-black/10 transition-colors"
           >
-            <div className="w-10 h-10 bg-[#7b8fa1] rounded-lg flex items-center justify-center text-white">
+            <div className="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center text-blue-400">
               <FileText size={20} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{message.fileName}</p>
               <p className="text-[10px] opacity-60 uppercase">Document</p>
             </div>
-            <Download size={18} className="text-[#54656f]" />
+            <Download size={18} className="text-white/40" />
           </a>
         );
       default:
@@ -101,20 +103,23 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isOwn }) => {
   };
 
   return (
-    <div className={cn("flex w-full mb-1", isOwn ? 'justify-end' : 'justify-start')}>
+    <div className={cn("flex w-full mb-2", isOwn ? 'justify-end' : 'justify-start')}>
       <div 
         className={cn(
-          "max-w-[85%] md:max-w-[65%] rounded-lg px-2 py-1.5 shadow-sm relative",
+          "max-w-[85%] md:max-w-[65%] rounded-2xl px-3 py-2 shadow-lg relative transition-all duration-300",
           isOwn 
-            ? 'bg-[#d9fdd3] rounded-tr-none message-bubble-own' 
-            : 'bg-white rounded-tl-none message-bubble-other'
+            ? 'bg-blue-600 text-white shadow-blue-500/10' 
+            : 'bg-[#111] text-white shadow-black/20 border border-white/5'
         )}
       >
-        <div className="pr-12">
+        <div className="pr-14">
+          {showSenderName && senderName && !isOwn && (
+            <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-1">{senderName}</p>
+          )}
           {renderContent()}
         </div>
-        <div className="absolute bottom-1 right-2 flex items-center gap-1">
-          <span className="text-[10px] text-[#667781] uppercase">{time}</span>
+        <div className="absolute bottom-1.5 right-3 flex items-center gap-1.5">
+          <span className={cn("text-[10px] uppercase font-bold tracking-tighter", isOwn ? 'text-white/60' : 'text-white/30')}>{time}</span>
           {renderStatus()}
         </div>
       </div>

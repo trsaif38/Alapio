@@ -9,6 +9,10 @@ import QRCodeModal from './QRCodeModal';
 import ScannerModal from './ScannerModal';
 import NewContactModal from './NewContactModal';
 
+import SettingsModal from './SettingsModal';
+import CreateGroupModal from './CreateGroupModal';
+import SwitchAccountModal from './SwitchAccountModal';
+
 interface SidebarProps {
   users: UserProfile[];
   selectedUser: UserProfile | null;
@@ -20,7 +24,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, loading, onAddUserByEmail, onAddUserByUid, onProfileClick }) => {
-  const { user } = useAuth();
+  const { user, accounts } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -28,6 +32,9 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isNewContactModalOpen, setIsNewContactModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isSwitchAccountOpen, setIsSwitchAccountOpen] = useState(false);
 
   const handleAddEmail = async (email: string) => {
     if (onAddUserByEmail) {
@@ -57,30 +64,32 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
   const filters = ['All', 'Unread', 'Favorites'];
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-black text-white">
       {/* Header */}
-      <div className="px-4 py-3 flex flex-col gap-2 border-b border-gray-100">
+      <div className="px-6 py-6 flex flex-col gap-4 border-b border-white/5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button 
               onClick={onProfileClick}
-              className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 hover:opacity-80 transition-opacity"
+              className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-white/10 hover:border-blue-600 transition-all duration-300"
             >
               <img src={user?.photoURL || ''} alt="My Profile" className="w-full h-full object-cover" />
             </button>
-            <h1 className="text-2xl font-bold text-[#111b21]">Chats</h1>
+            <div>
+              <h1 className="text-xl font-black tracking-tight uppercase italic">Alapio</h1>
+            </div>
           </div>
-          <div className="flex items-center gap-3 text-[#54656f]">
+          <div className="flex items-center gap-2 text-white/60">
             <button 
               onClick={() => setIsScannerOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-2 hover:bg-white/5 rounded-xl transition-colors"
               title="Scan QR Code"
             >
               <Scan size={20} />
             </button>
             <button 
               onClick={() => setIsQRModalOpen(true)}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              className="p-2 hover:bg-white/5 rounded-xl transition-colors"
               title="My QR Code"
             >
               <QrCode size={20} />
@@ -88,23 +97,33 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
             <div className="relative">
               <button 
                 onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
-                className={`p-2 rounded-full transition-colors ${isPlusMenuOpen ? 'bg-gray-200 text-black' : 'hover:bg-gray-100'}`}
+                className={`p-2 rounded-xl transition-colors ${isPlusMenuOpen ? 'bg-blue-600 text-white' : 'hover:bg-white/5'}`}
                 title="Add"
               >
                 <Plus size={20} />
               </button>
               
               {isPlusMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-100 z-50 py-2 animate-in fade-in zoom-in duration-200">
+                <div className="absolute top-full right-0 mt-2 w-48 bg-[#111] rounded-xl shadow-2xl border border-white/10 z-50 py-2 animate-in fade-in zoom-in duration-200">
                   <button 
                     onClick={() => {
                       setIsPlusMenuOpen(false);
                       setIsNewContactModalOpen(true);
                     }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]"
+                    className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white"
                   >
-                    <UserIcon size={18} className="text-[#54656f]" />
+                    <UserIcon size={18} className="text-blue-600" />
                     New Contact
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setIsPlusMenuOpen(false);
+                      setIsCreateGroupOpen(true);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white"
+                  >
+                    <Users size={18} className="text-blue-600" />
+                    Create Group
                   </button>
                 </div>
               )}
@@ -112,47 +131,50 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
             <div className="relative">
               <button 
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
-                className={`p-2 rounded-full transition-colors ${isMoreMenuOpen ? 'bg-gray-200 text-black' : 'hover:bg-gray-100'}`}
+                className={`p-2 rounded-xl transition-colors ${isMoreMenuOpen ? 'bg-blue-600 text-white' : 'hover:bg-white/5'}`}
                 title="More"
               >
                 <MoreVertical size={20} />
               </button>
 
               {isMoreMenuOpen && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-50 py-2 animate-in fade-in zoom-in duration-200">
-                  <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Navigation</div>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <Phone size={18} className="text-[#54656f]" />
+                <div className="absolute top-full right-0 mt-2 w-56 bg-[#111] rounded-xl shadow-2xl border border-white/10 z-50 py-2 animate-in fade-in zoom-in duration-200">
+                  <div className="px-4 py-2 text-xs font-bold text-white/20 uppercase tracking-wider">Navigation</div>
+                  <button className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white">
+                    <Phone size={18} className="text-white/40" />
                     Calls
                   </button>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <CircleDashed size={18} className="text-[#54656f]" />
+                  <button className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white">
+                    <CircleDashed size={18} className="text-white/40" />
                     Status
                   </button>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <Users size={18} className="text-[#54656f]" />
-                    Communities
-                  </button>
                   
-                  <div className="h-[1px] bg-gray-100 my-2"></div>
-                  <div className="px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider">Messages</div>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <Star size={18} className="text-[#54656f]" />
-                    Starred Messages
-                  </button>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <Archive size={18} className="text-[#54656f]" />
-                    Archived Chats
-                  </button>
-                  
-                  <div className="h-[1px] bg-gray-100 my-2"></div>
-                  <button className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-3 text-sm text-[#111b21]">
-                    <Settings size={18} className="text-[#54656f]" />
+                  <div className="h-[1px] bg-white/5 my-2"></div>
+                  <button 
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      setIsSettingsOpen(true);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white"
+                  >
+                    <Settings size={18} className="text-white/40" />
                     Settings
                   </button>
+                  {accounts.length > 1 && (
+                    <button 
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        setIsSwitchAccountOpen(true);
+                      }}
+                      className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3 text-sm text-white"
+                    >
+                      <UserIcon size={18} className="text-white/40" />
+                      Switch Account
+                    </button>
+                  )}
                   <button 
                     onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left hover:bg-red-50 flex items-center gap-3 text-sm text-red-600 font-medium"
+                    className="w-full px-4 py-2 text-left hover:bg-blue-600/10 flex items-center gap-3 text-sm text-blue-500 font-medium"
                   >
                     <LogOut size={18} />
                     Log Out
@@ -165,13 +187,13 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
       </div>
 
       {/* Search */}
-      <div className="px-4 py-2">
-        <div className="bg-[#f0f2f5] rounded-lg flex items-center px-3 py-1.5">
-          <Search size={18} className="text-[#54656f] mr-3" />
+      <div className="px-6 py-4">
+        <div className="bg-black rounded-xl flex items-center px-4 py-2.5 border border-white/5 focus-within:border-blue-600/50 transition-all">
+          <Search size={18} className="text-white/20 mr-3" />
           <input 
             type="text" 
-            placeholder="Search or start a new chat" 
-            className="bg-transparent border-none outline-none text-sm w-full text-[#3b4a54] placeholder:text-[#667781]"
+            placeholder="Search messages..." 
+            className="bg-transparent border-none outline-none text-sm w-full text-white placeholder:text-white/20"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -179,62 +201,63 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
       </div>
 
       {/* Filters */}
-      <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+      <div className="px-6 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
         {filters.map((filter) => (
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
-            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 whitespace-nowrap ${
               activeFilter === filter 
-                ? 'bg-[#e7fce3] text-[#008069]' 
-                : 'bg-[#f0f2f5] text-[#54656f] hover:bg-gray-200'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                : 'bg-white/5 text-white/40 hover:bg-white/10'
             }`}
           >
             {filter}
           </button>
         ))}
-        <button className="p-1 text-[#54656f] hover:bg-gray-100 rounded-full ml-auto">
-          <ChevronDown size={16} />
-        </button>
       </div>
 
       {/* User List */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar mt-2">
+      <div className="flex-1 overflow-y-auto custom-scrollbar mt-4 px-2">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-10 gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00a884]"></div>
-            <p className="text-sm text-[#667781]">Loading contacts...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="text-sm text-white/40">Loading contacts...</p>
           </div>
         ) : (
-          <>
+          <div className="space-y-1">
             {filteredUsers.map((u) => (
               <div 
                 key={u.uid}
                 onClick={() => onSelectUser(u)}
-                className={`flex items-center px-3 py-3 cursor-pointer hover:bg-[#f5f6f6] transition-colors ${selectedUser?.uid === u.uid ? 'bg-[#f0f2f5]' : ''}`}
+                className={`flex items-center px-4 py-4 cursor-pointer rounded-2xl transition-all duration-200 group ${selectedUser?.uid === u.uid ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'hover:bg-white/5'}`}
               >
                 <div className="relative">
-                  <img src={u.photoURL} alt={u.displayName} className="w-12 h-12 rounded-full mr-3" />
-                  <div className="absolute bottom-0 right-3 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                  <img src={u.photoURL} alt={u.displayName} className="w-12 h-12 rounded-2xl mr-4 object-cover border border-white/10" />
+                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-4 border-black rounded-full ${u.isGroup ? 'hidden' : ''}`}></div>
                 </div>
-                <div className="flex-1 min-w-0 border-b border-gray-100 pb-3">
+                <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-[17px] font-normal text-[#111b21] truncate">{u.displayName}</h3>
-                    <span className="text-xs text-[#667781]">Yesterday</span>
+                    <h3 className={`text-sm font-bold truncate ${selectedUser?.uid === u.uid ? 'text-white' : 'text-white/90'}`}>{u.displayName}</h3>
+                    <span className={`text-[10px] font-medium ${selectedUser?.uid === u.uid ? 'text-white/60' : 'text-white/20'}`}>12:45 PM</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <p className="text-sm text-[#667781] truncate">Click to start chatting...</p>
-                    <ChevronDown size={16} className="text-[#8696a0] opacity-0 group-hover:opacity-100" />
+                    <p className={`text-xs truncate ${selectedUser?.uid === u.uid ? 'text-white/70' : 'text-white/40'}`}>
+                      {u.isGroup ? 'Group Message' : 'Tap to open conversation'}
+                    </p>
+                    {selectedUser?.uid !== u.uid && (
+                      <div className="w-2 h-2 bg-blue-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
             {filteredUsers.length === 0 && (
-              <div className="p-10 text-center text-[#667781] text-sm">
-                No contacts found
+              <div className="p-10 text-center text-white/20 text-sm font-medium">
+                No conversations found
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -251,6 +274,19 @@ const Sidebar: React.FC<SidebarProps> = ({ users, selectedUser, onSelectUser, lo
         isOpen={isNewContactModalOpen}
         onClose={() => setIsNewContactModalOpen(false)}
         onAdd={handleAddEmail}
+      />
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
+      <CreateGroupModal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        contacts={users.filter(u => !u.isGroup)}
+      />
+      <SwitchAccountModal 
+        isOpen={isSwitchAccountOpen}
+        onClose={() => setIsSwitchAccountOpen(false)}
       />
     </div>
   );
